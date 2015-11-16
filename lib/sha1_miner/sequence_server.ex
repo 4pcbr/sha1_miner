@@ -10,11 +10,10 @@ defmodule Sha1Miner.SequenceServer do
     { i0, j0 } = { i, j }
     { i, j } = case i do
       k when k < j and j - k == 1 -> { i + 1, 0 }
-      k when k <  j -> { i + 1, j }
-      k when k == j -> { 0, j + 1 }
-      k when k >  j -> { i, j + 1 }
+      k when k <  j               -> { i + 1, j }
+      k when k == j               -> { 0, j + 1 }
+      k when k >  j               -> { i, j + 1 }
     end
-
     { :reply, { i0, j0 }, { i, j } }
   end
 
