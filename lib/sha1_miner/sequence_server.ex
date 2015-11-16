@@ -6,6 +6,10 @@ defmodule Sha1Miner.SequenceServer do
     GenServer.start_link( __MODULE__, { 0, 0 }, name: __MODULE__ )
   end
 
+  def reset do
+    GenServer.cast( __MODULE__, :reset )
+  end
+
   def handle_call( :next, _from, { i, j } ) do
     { i0, j0 } = { i, j }
     { i, j } = case i do
@@ -17,8 +21,12 @@ defmodule Sha1Miner.SequenceServer do
     { :reply, { i0, j0 }, { i, j } }
   end
 
+  def handle_cast( :reset, _ ) do
+    { :noreply, { 0, 0 } }
+  end
+
   def next do
-    GenServer.call __MODULE__, :next
+    GenServer.call( __MODULE__, :next )
   end
 
 end
