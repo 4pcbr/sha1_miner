@@ -1,16 +1,16 @@
 defmodule Sha1Miner.Miner do
 
-  def run( scheduler, commit_obj, preffix, author, committer ) do
+  def run( scheduler, commit_obj, preffix ) do
     blob = "commit #{byte_size( commit_obj )}\x00#{commit_obj}"
-    #TODO
-    author_pos    = :binary.match( commit_obj, author_date )
-    committer_pos = :binary.match( commit_obj, committer_date )
+    { macro_sec, sec, _ } = :os.timestamp
+    timestamp = macro_sec * 1_000_000 + sec
+    { author, committer } = parse_commit_dates( blob )
     cb = fn( cb ) ->
       send scheduler, { :ready, self }
       receive do
         { :next_round, client } ->
           { i, j } = Sha1Miner.SequenceServer.next
-          send client, { :result, do_mine( blob, preffix, author, committer, i, j ) }
+          send client, { :result, do_mine( blob, preffix, timestamp, author, committer, i, j ) }
         { :terminate } ->
           exit( :normal )
       end
@@ -19,32 +19,58 @@ defmodule Sha1Miner.Miner do
     cb.( cb )
   end
 
-  defp _inspect(v) do
-    IO.inspect v
-    v
+
+  defp _inspect(v1, v2) do
+    IO.inspect v1
+    IO.inspect v2
+    v1
   end
 
 
-  defp do_mine( blob, preffix, { author_date, author_tz, author_pos }, { committer_date, committer_tz, committer_pos }, i, j ) do
-    { macro_sec, sec, _ } = :erlang.now
-    cur_timestamp = macro_sec * 1_000_000 + sec
-    a_delta = cur_timestamp - i
-    c_delta = cur_timestamp - j
+  defp do_mine( blob, preffix, timestamp, { _, author_tz, a_start, a_len }, { _, committer_tz, c_start, c_len }, i, j ) do
+    a_delta = timestamp - i
+    c_delta = timestamp - j
+    blob = blob
+          |> str_replace_at( Integer.to_string( a_delta ), { a_start, 10 } )
+          |> str_replace_at( Integer.to_string( c_delta ), { c_start, 10 } )
     case blob
-          |> str_replace_at( Integer.to_string( a_delta ), author_pos )
-          |> str_replace_at( Integer.to_string( c_delta ), committer_pos )
-          |> :crypto.sha
+          |> sha1
           |> :binary.part( { 0, byte_size( preffix ) } ) do
       k when k == preffix ->
         IO.inspect { i, j }
+        IO.puts blob
         { :done, { { a_delta, author_tz }, { c_delta, committer_tz } }, self }
-      default ->
+      << a, a, a, _::binary>> ->
+        IO.inspect <<a, a, a>>
+        { :not_found, self }
+      << a, a, a, a, _::binary>> ->
+        IO.inspect <<a, a, a, a>>
+        { :not_found, self }
+      << a, a, a, a, a, _::binary>> ->
+        IO.inspect <<a, a, a, a, a>>
+        { :not_found, self }
+      _ ->
         { :not_found, self }
     end
   end
 
+
+  defp sha1( key ), do: :crypto.hash( :sha, key )
+
+
   defp str_replace_at( str1, str2, { start, len }) do
     :binary.part( str1, 0, start ) <> str2 <> :binary.part( str1, start + len, byte_size( str1 ) - start - len )
+  end
+
+
+  defp parse_commit_dates( commit_obj ) do
+    [ author_date, author_tz ]       = Regex.run( ~r/author.+>\s(.+)/m,    commit_obj ) |> Enum.at( 1 ) |> String.split( " " )
+    [ { _, _ }, { a_start, a_len } ] = Regex.run( ~r/author.+>\s(.+)/m,    commit_obj, return: :index )
+    [ committer_date, committer_tz ] = Regex.run( ~r/committer.+>\s(.+)/m, commit_obj ) |> Enum.at( 1 ) |> String.split( " " )
+    [ { _, _ }, { c_start, c_len } ] = Regex.run( ~r/committer.+>\s(.+)/m, commit_obj, return: :index )
+    { author_date,    _ } = Integer.parse( author_date,    10 )
+    { committer_date, _ } = Integer.parse( committer_date, 10 )
+    { { author_date, author_tz, a_start, a_len }, { committer_date, committer_tz, c_start, c_len } }
   end
 
 

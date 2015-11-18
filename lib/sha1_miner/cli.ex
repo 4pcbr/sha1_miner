@@ -31,15 +31,14 @@ defmodule Sha1Miner.CLI do
     Sha1Miner.SequenceServer.reset
     cur_hash
       |> cat_file
-      |> parse_commit_dates
       |> run_miners( preffix, nodes )
   end
 
-  defp run_miners( { commit_obj, author, committer }, preffix, nodes ) do
+  defp run_miners( commit_obj, preffix, nodes ) do
     IO.puts "Running the miners"
     (1..nodes)
       |> Enum.map( fn( _ix ) ->
-        spawn( Sha1Miner.Miner, :run, [ self, commit_obj, preffix, author, committer ] )
+        spawn( Sha1Miner.Miner, :run, [ self, commit_obj, preffix ] )
       end )
       |> listen_to_miners( [] )
   end
@@ -75,16 +74,8 @@ defmodule Sha1Miner.CLI do
     end
   end
 
-  defp parse_commit_dates( commit_obj ) do
-    [ author_date, author_tz ]       = Regex.run( ~r/author.+>\s(.+)/m,    commit_obj ) |> Enum.at( 1 ) |> String.split( " " )
-    [ committer_date, committer_tz ] = Regex.run( ~r/committer.+>\s(.+)/m, commit_obj ) |> Enum.at( 1 ) |> String.split( " " )
-    author_pos    = :binary.match( commit_obj, author_date )
-    committer_pos = :binary.match( commit_obj, committer_date )
-    { author_date,    _ } = Integer.parse( author_date,    10 )
-    { committer_date, _ } = Integer.parse( committer_date, 10 )
-    { commit_obj, { author_date, author_tz, author_pos }, { committer_date, committer_tz, committer_pos } }
-  end
+  
 
 end
 
-# Sha1Miner.CLI.main(["--nodes", "1", "--preffix", "aaa"])
+# Sha1Miner.CLI.main(["--nodes", "4", "--preffix", "aaa"])
