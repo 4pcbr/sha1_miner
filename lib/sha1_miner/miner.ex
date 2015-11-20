@@ -1,20 +1,24 @@
 defmodule Sha1Miner.Miner do
 
+  @timestamp = :os.timestamp
+                |> (fn({ macro, sec, _ }) ->
+                  macro * 1_000_000 + sec
+                end).()
+                
+
   def run( scheduler, commit_obj, preffix ) do
     blob = "commit #{byte_size( commit_obj )}\x00#{commit_obj}"
-    { macro_sec, sec, _ } = :os.timestamp
-    timestamp = macro_sec * 1_000_000 + sec
     { author, committer } = parse_commit_dates( blob )
-    cb = fn( cb ) ->
+
+    loop = fn( loop ) ->
       send scheduler, { :ready, self }
       receive do
-        { :next_round, client } ->
-          { i, j } = Sha1Miner.SequenceServer.next
-          send client, { :result, do_mine( blob, preffix, timestamp, author, committer, i, j ) }
+        { :next_round, from..to, client } ->
+          send client, { :result, do_mine( blob, preffix, author, committer, from, to ) }
         { :terminate } ->
           exit( :normal )
       end
-      cb.( cb )
+      loop.( loop )
     end
     cb.( cb )
   end
@@ -27,9 +31,17 @@ defmodule Sha1Miner.Miner do
   end
 
 
-  defp do_mine( blob, preffix, timestamp, { _, author_tz, a_start, a_len }, { _, committer_tz, c_start, c_len }, i, j ) do
-    a_delta = timestamp - i
-    c_delta = timestamp - j
+  defp do_mine2( blob, preffix, timestamp,
+                  { _, author_tz, a_start, a_len },
+                  { _, committer_tz, c_start, c_len }, from, to) do
+    #TODO
+  end
+
+
+
+  defp do_mine( blob, preffix, { _, author_tz, a_start, a_len }, { _, committer_tz, c_start, c_len }, i, j ) do
+    a_delta = @timestamp - i
+    c_delta = @timestamp - j
     blob = blob
           |> str_replace_at( Integer.to_string( a_delta ), { a_start, 10 } )
           |> str_replace_at( Integer.to_string( c_delta ), { c_start, 10 } )

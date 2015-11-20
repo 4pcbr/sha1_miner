@@ -1,5 +1,7 @@
 defmodule Sha1Miner.CLI do
 
+  @batch_size 100
+
   def main( argv ) do
     init_self
     argv
@@ -8,7 +10,7 @@ defmodule Sha1Miner.CLI do
   end
 
   defp init_self do
-    Sha1Miner.SequenceServer.start_link
+    # Put some init code here
   end
 
   def parse_args( argv ) do
@@ -28,7 +30,6 @@ defmodule Sha1Miner.CLI do
 
   def process( [ preffix: preffix, nodes: nodes ] ) do
     { num_pref, _ } = Integer.parse( preffix, 0x10 )
-    Sha1Miner.SequenceServer.reset
     cur_hash
       |> cat_file
       |> run_miners( preffix, nodes )
@@ -40,16 +41,16 @@ defmodule Sha1Miner.CLI do
       |> Enum.map( fn( _ix ) ->
         spawn( Sha1Miner.Miner, :run, [ self, commit_obj, preffix ] )
       end )
-      |> listen_to_miners( [] )
+      |> listen_to_miners( [], 0 )
   end
 
-  defp listen_to_miners( miners, results ) do
+  defp listen_to_miners( miners, results, offset ) do
     receive do
       { :ready, pid } ->
-        send( pid, { :next_round, self } )
-        listen_to_miners( miners, results )
+        send( pid, { :next_round, offset..offset + @batch_size - 1, self } )
+        listen_to_miners( miners, results, offset + @batch_size )
       { :result, { :not_found, pid } } ->
-        listen_to_miners( miners, results )
+        listen_to_miners( miners, results, offset + @batch_size )
       { :result, { :done, the_hash, pid } } ->
         Enum.each( miners, &(send( &1, :terminate )) )
         [ the_hash | results ]
@@ -73,8 +74,6 @@ defmodule Sha1Miner.CLI do
         exit error_code
     end
   end
-
-  
 
 end
 
