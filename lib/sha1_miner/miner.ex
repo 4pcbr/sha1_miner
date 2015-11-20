@@ -1,70 +1,49 @@
 defmodule Sha1Miner.Miner do
 
-  @timestamp = :os.timestamp
+  @timestamp :os.timestamp
                 |> (fn({ macro, sec, _ }) ->
                   macro * 1_000_000 + sec
                 end).()
                 
 
-  def run( scheduler, commit_obj, preffix ) do
-    blob = "commit #{byte_size( commit_obj )}\x00#{commit_obj}"
-    { author, committer } = parse_commit_dates( blob )
-
-    loop = fn( loop ) ->
-      send scheduler, { :ready, self }
-      receive do
-        { :next_round, from..to, client } ->
-          send client, { :result, do_mine( blob, preffix, author, committer, from, to ) }
-        { :terminate } ->
-          exit( :normal )
-      end
-      loop.( loop )
+  def run( scheduler, blob, preffix, { a_start, c_start }) do
+    if ( a_start == 0 && c_start == 0 ) do
+      { a_start, c_start } = parse_commit_dates( blob )
     end
-    cb.( cb )
+    send scheduler, { :ready, self }
+    receive do
+      { :next_round, from, up_to, client } ->
+        send client, { :result, do_mine2( blob, preffix, a_start, c_start, { 0, from }, up_to ) }
+    end
+    run( scheduler, blob, preffix, { a_start, c_start } )
   end
 
 
-  defp _inspect(v1, v2) do
-    IO.inspect v1
-    IO.inspect v2
-    v1
-  end
-
-
-  defp do_mine2( blob, preffix, timestamp,
-                  { _, author_tz, a_start, a_len },
-                  { _, committer_tz, c_start, c_len }, from, to) do
-    #TODO
-  end
-
-
-
-  defp do_mine( blob, preffix, { _, author_tz, a_start, a_len }, { _, committer_tz, c_start, c_len }, i, j ) do
-    a_delta = @timestamp - i
-    c_delta = @timestamp - j
-    blob = blob
-          |> str_replace_at( Integer.to_string( a_delta ), { a_start, 10 } )
-          |> str_replace_at( Integer.to_string( c_delta ), { c_start, 10 } )
-    case blob
-          |> sha1
-          |> :binary.part( { 0, byte_size( preffix ) } ) do
-      k when k == preffix ->
+  defp do_mine2( blob, preffix, a_start, c_start, { i, j }, up_to) do
+    if j > up_to do
+      { :not_found }
+    else
+      mod_a = @timestamp - i
+      mod_c = @timestamp - j
+      new_blob = blob
+              |> str_replace_at( Integer.to_string( mod_a ), { a_start, 10 } )
+              |> str_replace_at( Integer.to_string( mod_c ), { c_start, 10 } )
+      cur_preffix = new_blob |> sha1 |> :binary.part({ 0, byte_size( preffix ) })
+      if ( cur_preffix == preffix ) do
         IO.inspect { i, j }
-        IO.puts blob
-        { :done, { { a_delta, author_tz }, { c_delta, committer_tz } }, self }
-      << a, a, a, _::binary>> ->
-        IO.inspect <<a, a, a>>
-        { :not_found, self }
-      << a, a, a, a, _::binary>> ->
-        IO.inspect <<a, a, a, a>>
-        { :not_found, self }
-      << a, a, a, a, a, _::binary>> ->
-        IO.inspect <<a, a, a, a, a>>
-        { :not_found, self }
-      _ ->
-        { :not_found, self }
+        IO.puts new_blob
+        { :done, { { mod_a }, { mod_c } } }
+      else
+        do_mine2( blob, preffix, a_start, c_start, _next_i_j({ i, j }), up_to )
+      end
     end
   end
+
+
+  defp _next_i_j({ i, j }) when i < j and i - j == 1, do: { i + 1, 0 }
+  defp _next_i_j({ i, j }) when i < j,                do: { i + 1, j }
+  defp _next_i_j({ i, j }) when i == j,               do: { 0, j + 1 }
+  defp _next_i_j({ i, j }) when i > j,                do: { i, j + 1 }
 
 
   defp sha1( key ), do: :crypto.hash( :sha, key )
@@ -76,13 +55,9 @@ defmodule Sha1Miner.Miner do
 
 
   defp parse_commit_dates( commit_obj ) do
-    [ author_date, author_tz ]       = Regex.run( ~r/author.+>\s(.+)/m,    commit_obj ) |> Enum.at( 1 ) |> String.split( " " )
-    [ { _, _ }, { a_start, a_len } ] = Regex.run( ~r/author.+>\s(.+)/m,    commit_obj, return: :index )
-    [ committer_date, committer_tz ] = Regex.run( ~r/committer.+>\s(.+)/m, commit_obj ) |> Enum.at( 1 ) |> String.split( " " )
-    [ { _, _ }, { c_start, c_len } ] = Regex.run( ~r/committer.+>\s(.+)/m, commit_obj, return: :index )
-    { author_date,    _ } = Integer.parse( author_date,    10 )
-    { committer_date, _ } = Integer.parse( committer_date, 10 )
-    { { author_date, author_tz, a_start, a_len }, { committer_date, committer_tz, c_start, c_len } }
+    [ _, { a_start, _ } ] = Regex.run( ~r/author.+>\s(.+)/m,    commit_obj, return: :index )
+    [ _, { c_start, _ } ] = Regex.run( ~r/committer.+>\s(.+)/m, commit_obj, return: :index )
+    { a_start, c_start }
   end
 
 
