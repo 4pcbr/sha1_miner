@@ -13,13 +13,13 @@ defmodule Sha1Miner.Miner do
     send scheduler, { :ready, self }
     receive do
       { :next_round, from, up_to, client } ->
-        send client, { :result, do_mine2( blob, preffix, a_start, c_start, { 0, from }, up_to ) }
+        send client, { :result, do_mine2( blob, preffix, a_start, c_start, 0, from, up_to ) }
     end
     run( scheduler, blob, preffix, { a_start, c_start } )
   end
 
 
-  defp do_mine2( blob, preffix, a_start, c_start, { i, j }, up_to) do
+  defp do_mine2( blob, preffix, a_start, c_start, i, j, up_to) do
     if j > up_to do
       { :not_found }
     else
@@ -34,16 +34,17 @@ defmodule Sha1Miner.Miner do
         IO.puts new_blob
         { :done, { { mod_a }, { mod_c } } }
       else
-        do_mine2( blob, preffix, a_start, c_start, _next_i_j({ i, j }), up_to )
+        { i, j } = _next_i_j( i, j )
+        do_mine2( blob, preffix, a_start, c_start, i, j, up_to )
       end
     end
   end
 
 
-  defp _next_i_j({ i, j }) when i < j and i - j == 1, do: { i + 1, 0 }
-  defp _next_i_j({ i, j }) when i < j,                do: { i + 1, j }
-  defp _next_i_j({ i, j }) when i == j,               do: { 0, j + 1 }
-  defp _next_i_j({ i, j }) when i > j,                do: { i, j + 1 }
+  defp _next_i_j( i, j ) when i < j and i - j == 1, do: { i + 1, 0 }
+  defp _next_i_j( i, j ) when i < j,                do: { i + 1, j }
+  defp _next_i_j( i, j ) when i == j,               do: { 0, j + 1 }
+  defp _next_i_j( i, j ) when i > j,                do: { i, j + 1 }
 
 
   defp sha1( key ), do: :crypto.hash( :sha, key )
