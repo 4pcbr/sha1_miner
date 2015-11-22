@@ -88,12 +88,14 @@ The new author date is: #{mod_a} (was #{a_time})"
       "y" ->
         a_date = "#{mod_a} #{a_tz}"
         c_date = "#{mod_c} #{c_tz}"
-        System.cmd( "git", [ "commit", "--amend", "--date=#{a_date}", "--file=-" ],
-          env: [ { "GIT_COMMITTER_DATE", c_date } ] )
+        IO.puts "Amending the commit"
+        { res, ret_code } = System.cmd( "git", [ "commit", "--amend", "--date=#{a_date}", "-C", "HEAD" ],
+            env: [ { "GIT_COMMITTER_DATE", c_date } ], stderr_to_stdout: true )
+        IO.puts res
       "n"  ->
         IO.puts "No changes applied"
     end
-    exit 0
+    exit :shutdown
   end
 
 
