@@ -1,14 +1,12 @@
 defmodule Sha1Miner.Miner do
 
-  @timestamp :os.timestamp
-                |> (fn({ macro, sec, _ }) ->
-                  macro * 1_000_000 + sec
-                end).()
-                
+
+  @timestamp :os.system_time(:seconds)
+
 
   def run( scheduler, blob, preffix, { a_start, c_start }) do
     if ( a_start == 0 && c_start == 0 ) do
-      { a_start, c_start } = parse_commit_dates( blob )
+      { { _, _, a_start, _ }, { _, _, c_start, _ } } = Sha1Miner.Commit.parse_commit_dates( blob )
     end
     send scheduler, { :ready, self }
     receive do
@@ -25,14 +23,13 @@ defmodule Sha1Miner.Miner do
     else
       mod_a = @timestamp - i
       mod_c = @timestamp - j
-      new_blob = blob
+      cur_blob = blob
               |> str_replace_at( Integer.to_string( mod_a ), { a_start, 10 } )
               |> str_replace_at( Integer.to_string( mod_c ), { c_start, 10 } )
-      cur_preffix = new_blob |> sha1 |> :binary.part({ 0, byte_size( preffix ) })
+      cur_preffix = cur_blob |> sha1 |> :binary.part({ 0, byte_size( preffix ) })
       if ( cur_preffix == preffix ) do
         IO.inspect { i, j }
-        IO.puts new_blob
-        { :done, { { mod_a }, { mod_c } } }
+        { :done, { blob, mod_a, mod_c } }
       else
         { i, j } = _next_i_j( i, j )
         do_mine( blob, preffix, a_start, c_start, i, j, up_to )
@@ -53,14 +50,6 @@ defmodule Sha1Miner.Miner do
   defp str_replace_at( str1, str2, { start, len }) do
     :binary.part( str1, 0, start ) <> str2 <> :binary.part( str1, start + len, byte_size( str1 ) - start - len )
   end
-
-
-  defp parse_commit_dates( commit_obj ) do
-    [ _, { a_start, _ } ] = Regex.run( ~r/author.+>\s(.+)/m,    commit_obj, return: :index )
-    [ _, { c_start, _ } ] = Regex.run( ~r/committer.+>\s(.+)/m, commit_obj, return: :index )
-    { a_start, c_start }
-  end
-
 
 end
 
