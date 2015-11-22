@@ -78,4 +78,6 @@ defmodule Sha1Miner.CLI do
 
 end
 
-# Sha1Miner.CLI.main(["--nodes", "4", "--preffix", "aaa"])
+# Sha1Miner.CLI.main(["--nodes", "4", "--preffix", "aaaa"])
+
+# git hash-object -t commit -w --stdin

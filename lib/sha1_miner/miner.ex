@@ -13,13 +13,13 @@ defmodule Sha1Miner.Miner do
     send scheduler, { :ready, self }
     receive do
       { :next_round, from, up_to, client } ->
-        send client, { :result, do_mine2( blob, preffix, a_start, c_start, 0, from, up_to ) }
+        send client, { :result, do_mine( blob, preffix, a_start, c_start, 0, from, up_to ) }
     end
     run( scheduler, blob, preffix, { a_start, c_start } )
   end
 
 
-  defp do_mine2( blob, preffix, a_start, c_start, i, j, up_to) do
+  defp do_mine( blob, preffix, a_start, c_start, i, j, up_to) do
     if j > up_to do
       { :not_found }
     else
@@ -35,7 +35,7 @@ defmodule Sha1Miner.Miner do
         { :done, { { mod_a }, { mod_c } } }
       else
         { i, j } = _next_i_j( i, j )
-        do_mine2( blob, preffix, a_start, c_start, i, j, up_to )
+        do_mine( blob, preffix, a_start, c_start, i, j, up_to )
       end
     end
   end
@@ -47,7 +47,7 @@ defmodule Sha1Miner.Miner do
   defp _next_i_j( i, j ) when i > j,                do: { i, j + 1 }
 
 
-  defp sha1( key ), do: :crypto.hash( :sha, key )
+  defp sha1( key ), do: :crypto.hash( :sha, key ) |> Base.encode16(case: :lower)
 
 
   defp str_replace_at( str1, str2, { start, len }) do
