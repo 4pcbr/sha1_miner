@@ -38,9 +38,10 @@ defmodule Sha1Miner.CLI do
 
   defp run_miners( blob, preffix, nodes ) do
     IO.puts "Running the miners"
+    timestamp = :os.system_time(:seconds)
     (1..nodes)
       |> Enum.map( fn( _ix ) ->
-        spawn( Sha1Miner.Miner, :run, [ self, blob, preffix, { 0, 0 } ] )
+        spawn( Sha1Miner.Miner, :run, [ self, blob, preffix, { 0, 0 }, timestamp ] )
       end )
       |> listen_to_miners( 0 )
   end
